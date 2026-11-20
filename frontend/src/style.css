@@ -4,3 +4,18 @@
 .page-heading{border-left:10px double var(--accent);padding-left:25px}.sidebar{border-right:8px double var(--accent)}.topline{border-bottom:3px double var(--ink)}.inbox article{border-top:1px dashed var(--accent);border-bottom:1px dashed var(--accent)}.metrics>div{border-left:0;border-top:4px solid var(--accent);padding:14px 5px}.overview-count{border-top:0;border-right:2px solid var(--accent);padding-right:20px}.login-story{background:var(--paper);color:var(--ink);border-right:25px solid var(--ink)}.login-form{background:color-mix(in oklch,var(--accent) 10%,var(--paper))}
 
 .policy-row{display:flex;flex-wrap:wrap;gap:15px;align-items:end;border-bottom:1px solid var(--line);padding:12px 0}.policy-row label{flex:1;min-width:140px}.policy-row button{font-size:11px;margin-bottom:14px;background:transparent;color:var(--ink)}#add-policy-row{background:transparent;color:var(--accent);border-color:var(--accent);margin:15px 0 25px}fieldset{border:1px solid var(--line);margin:20px 0}.weekday{display:inline-flex;align-items:center;margin:10px}.weekday input{width:auto;margin:0 6px 0 0}input[type=number]{appearance:textfield}
+
+/* 分段复盘：票根式分段条 */
+.segment{border-top:2px solid var(--ink);margin-top:34px;padding-top:14px}
+.segment-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:15px}
+.segment-head h3{margin:0;font-size:20px}
+.segment-note{color:var(--muted);margin:0;max-width:640px}
+.segment-progress{font-size:13px;margin:18px 0 8px}
+.segment-bar{height:6px;background:color-mix(in oklch,var(--ink) 12%,var(--paper));overflow:hidden}
+.segment-bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.segment-cuts{font-size:13px;margin:8px 0}
+.segment-cuts code{background:color-mix(in oklch,var(--accent) 14%,var(--paper));padding:3px 8px;font-size:12px}
+.segment-meta{color:var(--muted);font-size:11px}
+.segment h4{font-size:14px;margin:26px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.segment-start{background:transparent;color:var(--accent);border-color:var(--accent);margin-top:20px;font-size:12px}
+.segment .warning{margin:16px 0}

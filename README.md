@@ -12,6 +12,17 @@
 
 业务时钟 · 午休与假日显式扣除。输入：业务底稿与口径JSON；输出：summary、透视rows、method、warnings。算法实现在`backend/src/services/calculation.py`，输入校验在`validation.py`。固定seed=42，240条合成数据；未对接真实业务系统。修改源数据和新建因子/口径不会改变已提交报告。
 
+### 快慢段复盘（分段切点）
+月报把快慢两段揉成一个数看不出拐点。对**已复核**报告的冻结底稿，按报告时区（口径 `timezone`）把 `opened` 换算成开单日期，为所有小组选同一套日期切点（最多 3 处，每段每组至少 10 单）。段内用各组超时率 `p=k/n` 逐单预测是否超时，总平方误差 `Σk(n-k)/n` 最小者胜；同分时依次取切点更少、切点日期更早。实现在`backend/src/services/segment_algorithm.py`：
+
+- 阶段 0 只扫描底稿一次，落库「日期 × 小组」样本数/超时数矩阵；之后所有切法都在这张日级表上做前缀和与动态规划，**不为每种切法重扫底稿**（10 万单实测：扫描约 1.4s，1000 个日期时成本表约 4s、每层搜索约 0.5s）。
+- 每个搜索层（0～3 个切点）都是一个持久化阶段，结果存 `segment_searches.data`；worker 重启时通过 `resume` 把未完成任务重新入队，从已落库的下一层继续，不重算已完成阶段。
+- 每次“重新搜索”把 `version` 加一；worker 每次写库都带 `(id, run_id, version)` 条件，被取代的旧任务即使晚到也无法覆盖新结果。
+- 搜索全部完成前只公开阶段进度，不公开半成品；完成后一次性给出切点、每段起止日期、每段每组的样本数与超时数。找不到合适切法时给出缘由（小组样本不足、只有一个开单日期、增加切点不降低误差等）。
+- 前端报告页（业务总览与核算页的报告卡）显示复盘，可查看进度并重新搜索；`viewer` 只读。
+
+接口：`GET /runs/{id}/segment`（进度或结果）、`POST /runs/{id}/segment`（admin/analyst 开始或重搜）、`GET /segments`（各报告复盘状态）。
+
 ## 一天的验收剧本
 1. 09:00 admin查看240条seed底稿与具名业务期间。
 2. 09:10 analyst添加`service-calendar-202611.csv`的一条具名业务记录。
@@ -21,6 +32,7 @@
 6. 09:40 admin核对数值后填写至少4字复核说明。
 7. 09:45 admin建立60秒周期计划，worker到期生成站内持久化交付。
 8. 09:46 viewer在站内收件箱下载交付CSV；审计页查看操作者与时间。
+9. 09:50 admin在已复核报告页生成“快慢段复盘”，查看切点与每段每组的样本数/超时数；若约束下无合适切法，页面给出缘由。
 
 ## 快速启动
 ```sh
@@ -39,7 +51,7 @@ docker compose exec -T backend python -m scripts.seed_demo
 ## 工程结构与开发
 Python3.11/FastAPI/SQLAlchemy/Redis，PostgreSQL16；前端原生HTML/CSS/JS ES modules，Nginx代理`/api/`剥前缀至后端。`frontend/src`按api/stores/pages/components/hooks/utils/router/constants/types拆分；`backend/src`按models/schemas/services/controllers/routes/middlewares/config/utils/constants拆分；`backend/scripts/seed_demo.py`自然键幂等且不覆盖用户修改。SQLAlchemy启动创建初始结构，迁移说明在backend/migrations。
 
-后端开发：在backend安装requirements，设置DATABASE_URL/REDIS_URL/JWT_SECRET，`uvicorn src.main:app --reload`；前端可用Nginx或带同等代理的静态开发服务器。前后端全部业务计算在Python。
+后端开发：在backend安装requirements，设置DATABASE_URL/REDIS_URL/JWT_SECRET，`uvicorn src.main:app --reload`；前端可用Nginx或带同等代理的静态开发服务器。前后端全部业务计算在Python。纯算法与 service 层测试：`cd backend && PYTHONPATH=. python3 -m unittest discover -s tests -v`（service/API 测试需 SQLAlchemy、FastAPI、httpx）。
 
 环境变量：COMPOSE_PROJECT_NAME、FRONTEND_PORT、BACKEND_PORT、DB_PORT、JWT_SECRET（部署替换）、DATABASE_URL、REDIS_URL、SEED_DEMO。`.env`不入Git。数据库/Redis/共享产物为命名卷。共享角色枚举admin/analyst/viewer与状态queued/running/completed/failed分别定义于backend/src/constants/enums.py和frontend/src/constants/enums.js。两个中间件：统一可恢复校验错误、每IP每分钟360请求限流。
 
@@ -51,4 +63,4 @@ MIT License。
 ## 实际实体映射
 来源记录（Source，专属业务字段校验）、口径版本（Policy）、核算报告（Run）、交付计划（Schedule）、交付（Delivery）均经数据库→模型→请求schema→service→route/controller→frontend API→store→page。Period为已有来源期间字典，在任务期间选择器使用；不单独作为复杂度计数。底稿JSON为小型多字段单记录存储，不虚构未落库的子实体。
 
-实际表：期间字典 service_periods；专属来源 service_cases；冻结口径 business_calendars；异步报告 sla_runs。
+实际表：期间字典 service_periods；专属来源 service_cases；冻结口径 business_calendars；异步报告 sla_runs；分段复盘 segment_searches（每报告一行，带 version 与 stage 供续跑和并发改选）。
